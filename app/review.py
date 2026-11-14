@@ -72,7 +72,7 @@ def _build_prompt(content, sources, already):
     return (
         "APPROVED SOURCES:\n" + "\n".join(lines)
         + "\n\nALREADY FLAGGED:\n" + flagged
-        + "\n\n<draft>\n" + content + "\n</draft>"
+        + "\n\n<draft>\n" + content.replace("</draft>", "[/draft]") + "\n</draft>"
     )
 
 

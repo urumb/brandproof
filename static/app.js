@@ -126,7 +126,7 @@ function renderNew() {
   const title = el("input", { type: "text", id: "t", maxlength: 120, placeholder: "e.g. Diwali Instagram post" });
   const channel = el("select", { id: "c" }, ...[["social", "Social post"], ["ad", "Advertisement"], ["email", "Email"], ["web", "Web page"], ["document", "Document"]].map(([v, l]) => el("option", { value: v }, l)));
   const text = el("textarea", { id: "x", maxlength: 20000, placeholder: "Paste the content you want to publish…" });
-  const file = el("input", { type: "file", accept: ".txt,.md,.docx", id: "f" });
+  const file = el("input", { type: "file", accept: ".txt,.md,.docx,.pdf", id: "f" });
   file.addEventListener("change", async () => {
     if (!file.files[0]) return;
     const fd = new FormData(); fd.append("file", file.files[0]);
@@ -153,7 +153,7 @@ function renderNew() {
       el("div", { class: "card" },
         el("div", { class: "row" }, el("div", {}, el("label", { for: "t" }, "Title"), title), el("div", {}, el("label", { for: "c" }, "Channel"), channel)),
         el("label", { for: "x" }, "Content"), text,
-        el("label", { for: "f" }, "…or upload a .txt or .docx file"), file,
+        el("label", { for: "f" }, "…or upload a .txt, .docx or .pdf file"), file,
         el("div", { class: "actions" }, run, sample)),
       el("div", { class: "card" },
         el("h2", {}, "How it works"),
@@ -231,7 +231,7 @@ async function renderDraft(id, preset) {
 
   // workflow
   const wf = el("div", { class: "card" }, el("h2", {}, "Approval"));
-  wf.append(el("p", {}, statusBadge(d.status), " ", el("span", { class: "meta" }, `by ${d.author_name} · ${d.channel} · ${data.versions} version(s)`)));
+  wf.append(el("p", {}, statusBadge(d.status), " ", el("span", { class: "meta" }, `Author: ${d.author_name} · ${d.channel} · ${data.versions} version(s)`)));
   const acts = el("div", { class: "actions" });
   if (can.submit) {
     const b = el("button", { class: "btn", onclick: () => busy(b, async () => reload(await api(`/api/drafts/${id}/submit`, { method: "POST" }))) }, "Submit for approval");
@@ -340,7 +340,7 @@ async function renderLibrary() {
       await api("/api/sources", { method: "POST", body: { kind: kind.value, title: title.value, body: body.value, avoid: avoid.value || null, prefer: prefer.value || null } });
       toast("Added to the library."); renderLibrary();
     }) }, "Add source");
-    const file = el("input", { type: "file", accept: ".txt,.md,.docx" });
+    const file = el("input", { type: "file", accept: ".txt,.md,.docx,.pdf" });
     const imp = el("button", { class: "btn ghost", onclick: () => busy(imp, async () => {
       if (!file.files[0]) throw new Error("Choose a file first.");
       const fd = new FormData(); fd.append("file", file.files[0]);

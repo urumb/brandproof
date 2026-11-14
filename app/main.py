@@ -1,4 +1,5 @@
 import io
+from contextlib import asynccontextmanager
 import os
 import secrets
 from pathlib import Path
@@ -13,7 +14,7 @@ from . import db, llm
 from .auth import (current_user, hash_password, login_failures, require_roles,
                    review_limiter, verify_password)
 from .review import run_review
-from .seed import SAMPLE_DRAFT, seed
+from .seed import SAMPLE_DRAFT, is_seeded, seed
 
 
 def _load_dotenv():
@@ -31,7 +32,17 @@ STATIC = Path(__file__).resolve().parent.parent / "static"
 MAX_TEXT = 20_000
 MAX_UPLOAD = 1_000_000
 
-app = FastAPI(title="BrandProof", docs_url=None, redoc_url=None, openapi_url=None)
+@asynccontextmanager
+async def lifespan(_app):
+    db.init()
+    if os.environ.get("SEED_DEMO", "1") == "1":
+        conn = db.connect()
+        seed(conn)
+        conn.close()
+    yield
+
+
+app = FastAPI(title="BrandProof", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -58,15 +69,6 @@ app.add_middleware(
     https_only=os.environ.get("COOKIE_SECURE") == "1",
     max_age=60 * 60 * 12,
 )
-
-
-@app.on_event("startup")
-def startup():
-    db.init()
-    if os.environ.get("SEED_DEMO", "1") == "1":
-        conn = db.connect()
-        seed(conn)
-        conn.close()
 
 
 def audit(conn, draft_id, user_id, action, detail=None):
@@ -146,6 +148,11 @@ def add_source(body: SourceIn, user=Depends(require_roles("admin")), conn=Depend
 
 @app.delete("/api/sources/{sid}")
 def delete_source(sid: int, user=Depends(require_roles("admin")), conn=Depends(db.get_conn)):
+    row = conn.execute("SELECT kind, title, body FROM sources WHERE id=?", (sid,)).fetchone()
+    if not row:
+        raise HTTPException(404, "Source not found.")
+    if os.environ.get("DEMO_LOCK_LIBRARY", "1") == "1" and is_seeded(row["kind"], row["title"], row["body"]):
+        raise HTTPException(403, "Demo brand rules are locked so every visitor sees the same demo. Add your own sources instead.")
     conn.execute("UPDATE sources SET active=0 WHERE id=?", (sid,))
     return {"ok": True}
 
@@ -156,6 +163,16 @@ def _extract_text(name: str, data: bytes) -> str:
     lower = (name or "").lower()
     if lower.endswith(".txt") or lower.endswith(".md"):
         return data.decode("utf-8", errors="replace")
+    if lower.endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(data))
+            text = "\n\n".join((page.extract_text() or "") for page in reader.pages[:50])
+        except Exception:
+            raise HTTPException(400, "Could not read that PDF file.")
+        if not text.strip():
+            raise HTTPException(400, "No text found in that PDF (scanned PDFs are not supported).")
+        return text
     if lower.endswith(".docx"):
         try:
             import docx
@@ -163,7 +180,7 @@ def _extract_text(name: str, data: bytes) -> str:
             return "\n\n".join(p.text for p in d.paragraphs if p.text.strip())
         except Exception:
             raise HTTPException(400, "Could not read that .docx file.")
-    raise HTTPException(400, "Upload a .txt, .md or .docx file.")
+    raise HTTPException(400, "Upload a .txt, .md, .docx or .pdf file.")
 
 
 @app.post("/api/extract")
@@ -205,8 +222,9 @@ def _get_draft(conn, did, user, write=False):
     return dict(d)
 
 
-def _check_rate(user):
-    if not review_limiter.allow(f"u{user['id']}"):
+def _check_rate(user, request: Request):
+    ip = request.client.host if request.client else "?"
+    if not review_limiter.allow(f"u{user['id']}|{ip}"):
         raise HTTPException(429, "Too many reviews in a short time. Wait a few minutes.")
 
 
@@ -250,8 +268,8 @@ def list_drafts(user=Depends(current_user), conn=Depends(db.get_conn)):
 
 
 @app.post("/api/drafts")
-def create_draft(body: DraftIn, user=Depends(require_roles("creator", "admin")), conn=Depends(db.get_conn)):
-    _check_rate(user)
+def create_draft(body: DraftIn, request: Request, user=Depends(require_roles("creator", "admin")), conn=Depends(db.get_conn)):
+    _check_rate(user, request)
     cur = conn.execute("INSERT INTO drafts (author_id, title, channel, content) VALUES (?,?,?,?)",
                        (user["id"], body.title.strip(), body.channel, body.content))
     did = cur.lastrowid
@@ -268,11 +286,11 @@ def get_draft(did: int, user=Depends(current_user), conn=Depends(db.get_conn)):
 
 
 @app.put("/api/drafts/{did}")
-def update_draft(did: int, body: ContentIn, user=Depends(current_user), conn=Depends(db.get_conn)):
+def update_draft(did: int, body: ContentIn, request: Request, user=Depends(current_user), conn=Depends(db.get_conn)):
     d = _get_draft(conn, did, user, write=True)
     if not _detail(conn, did, user)["can"]["edit"]:
         raise HTTPException(403, "You cannot edit this draft now.")
-    _check_rate(user)
+    _check_rate(user, request)
     _save_content(conn, d, body.content, user, "Edited by hand")
     note = run_review(conn, did, body.content)
     audit(conn, did, user["id"], "re-reviewed")
@@ -310,20 +328,35 @@ def resolve(fid: int, body: ResolveIn, user=Depends(current_user), conn=Depends(
         raise HTTPException(400, "No replacement text given.")
     if f["excerpt"] not in d["content"]:
         raise HTTPException(409, "That text is no longer in the draft. Re-run the review.")
-    content = d["content"].replace(f["excerpt"], new_text, 1)
+    if f["origin"] == "rule":
+        content = d["content"].replace(f["excerpt"], new_text)
+    else:
+        content = d["content"].replace(f["excerpt"], new_text, 1)
     status = "accepted" if body.action == "accept" else "edited"
     conn.execute("UPDATE findings SET status=?, resolution_note=? WHERE id=?", (status, new_text, fid))
     _save_content(conn, d, content, user, f"{status} suggestion")
     audit(conn, d["id"], user["id"], f"{status} suggestion", f'"{f["excerpt"]}" → "{new_text}"')
+    _drop_stale(conn, d["id"], content, user)
     return _detail(conn, d["id"], user)
 
 
+def _drop_stale(conn, did, content, user):
+    """Open findings whose text was changed by another fix no longer apply."""
+    stale = [r for r in conn.execute("SELECT id, excerpt FROM findings WHERE draft_id=? AND status='open'", (did,))
+             if r["excerpt"] not in content]
+    for r in stale:
+        conn.execute("DELETE FROM findings WHERE id=?", (r["id"],))
+    if stale:
+        audit(conn, did, user["id"], "cleared outdated findings",
+              f"{len(stale)} finding(s) no longer matched the text after the fix")
+
+
 @app.post("/api/drafts/{did}/review")
-def rereview(did: int, user=Depends(current_user), conn=Depends(db.get_conn)):
+def rereview(did: int, request: Request, user=Depends(current_user), conn=Depends(db.get_conn)):
     d = _get_draft(conn, did, user, write=True)
     if not _detail(conn, did, user)["can"]["resolve"]:
         raise HTTPException(403, "You cannot review this draft now.")
-    _check_rate(user)
+    _check_rate(user, request)
     note = run_review(conn, did, d["content"])
     audit(conn, did, user["id"], "re-reviewed")
     return _detail(conn, did, user, note)

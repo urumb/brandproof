@@ -74,3 +74,16 @@ def seed(conn):
     for avoid, title, body in BANNED:
         conn.execute("INSERT INTO sources (kind, title, body, avoid) VALUES ('banned',?,?,?)", (title, body, avoid))
     conn.commit()
+
+
+def is_seeded(kind, title, body):
+    """True if a source is one of the built-in demo brand rules."""
+    if kind == "guideline":
+        return (title, body) in GUIDELINES
+    if kind == "fact":
+        return (title, body) in FACTS
+    if kind == "term":
+        return any(t[2] == title and t[3] == body for t in TERMS)
+    if kind == "banned":
+        return any(b[1] == title and b[2] == body for b in BANNED)
+    return False
