@@ -2,7 +2,17 @@
 import json
 import os
 
+import ssl
+
 import httpx
+
+try:
+    # Use the operating system's certificate store (works behind antivirus HTTPS scanning / proxies).
+    import truststore
+
+    _VERIFY = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+except ImportError:
+    _VERIFY = True
 
 
 class LLMError(Exception):
@@ -13,7 +23,7 @@ def config():
     return {
         "key": os.environ.get("LLM_API_KEY", ""),
         "base": os.environ.get("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
-        "model": os.environ.get("LLM_MODEL", "llama-3.3-70b-versatile"),
+        "model": os.environ.get("LLM_MODEL", "openai/gpt-oss-120b"),
     }
 
 
@@ -37,10 +47,11 @@ def chat_json(system: str, user: str) -> dict:
                 "model": c["model"],
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
                 "temperature": 0.1,
-                "max_tokens": 1800,
+                "max_tokens": 4000,
                 "response_format": {"type": "json_object"},
             },
             timeout=40,
+            verify=_VERIFY,
         )
     except httpx.HTTPError:
         raise LLMError("The AI service could not be reached. Rule checks still ran.")
