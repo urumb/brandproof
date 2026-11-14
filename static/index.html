@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BrandProof</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Brand<span>Proof</span></div>
+    <nav id="nav" hidden>
+      <button data-view="new">New review</button>
+      <button data-view="drafts">Drafts</button>
+      <button data-view="library">Brand library</button>
+      <button data-view="ai">AI &amp; privacy</button>
+    </nav>
+    <div id="who"></div>
+  </header>
+  <main id="main" aria-live="polite"></main>
+  <div id="toast" role="status" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

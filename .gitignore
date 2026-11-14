@@ -1,0 +1,31 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets*
+
+# Local data (SQLite database, uploads)
+data/
+*.db
+*.db-journal
+*.sqlite*
+
+# Personal documents (contain team emails)
+*.pdf
+*.docx
+
+# Python / tooling
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Editor / local tool settings
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
