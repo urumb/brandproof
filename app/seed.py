@@ -33,6 +33,8 @@ BANNED = [
     ("#1", "Banned phrase", "Do not claim to be number one without an approved fact."),
     ("best in the world", "Banned phrase", "Superlatives without an approved fact are not allowed."),
     ("superfood", "Banned phrase", "Never describe a product as a superfood."),
+    ("healthiest", "Banned phrase", "Never describe a product as healthy. Only use nutrition claims from the approved facts list."),
+    ("healthy", "Banned phrase", "Never describe a product as healthy. Only use nutrition claims from the approved facts list."),
     ("detox", "Banned phrase", "Never describe a product as a detox."),
     ("sugar free", "Banned phrase", "Verdant Oat Bars contain natural sugar from dates, so they cannot be called sugar free."),
     ("100% recyclable", "Banned phrase", "Packaging is 70% recycled plastic and recyclable only where soft-plastic recycling exists."),
@@ -46,9 +48,13 @@ SAMPLE_DRAFT = (
 
 
 def seed(conn):
-    if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
-        return
     pw = os.environ.get("DEMO_PASSWORD", "change-me-demo")
+    if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]:
+        # Keep demo accounts in sync with the configured DEMO_PASSWORD.
+        for username in ("admin", "creator", "reviewer"):
+            conn.execute("UPDATE users SET pw_hash=? WHERE username=?", (hash_password(pw), username))
+        conn.commit()
+        return
     for username, name, role in [
         ("admin", "Asha (Brand admin)", "admin"),
         ("creator", "Kabir (Content creator)", "creator"),
