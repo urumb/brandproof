@@ -7,17 +7,19 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header class="top">
-    <div class="brand">Brand<span>Proof</span></div>
-    <nav id="nav" hidden>
-      <button data-view="new">New review</button>
-      <button data-view="drafts">Drafts</button>
-      <button data-view="library">Brand library</button>
-      <button data-view="ai">AI &amp; privacy</button>
-    </nav>
-    <div id="who"></div>
-  </header>
-  <main id="main" aria-live="polite"></main>
+  <div class="shell">
+    <header class="top">
+      <a class="brand" href="#" aria-label="BrandProof home">bp</a>
+      <nav id="nav" hidden>
+        <button data-view="new">New review</button>
+        <button data-view="drafts">Drafts</button>
+        <button data-view="library">Library</button>
+        <button data-view="ai">AI &amp; privacy</button>
+      </nav>
+      <div id="who"></div>
+    </header>
+    <main id="main" aria-live="polite"></main>
+  </div>
   <div id="toast" role="status" hidden></div>
   <script src="/static/app.js"></script>
 </body>

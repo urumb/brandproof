@@ -73,6 +73,7 @@ function go(view, arg) {
 window.addEventListener("hashchange", route);
 
 function route() {
+  window.scrollTo(0, 0);
   if (!ME) return renderLogin();
   const [view, arg] = location.hash.slice(1).split("/");
   setNav(view || "");
@@ -95,16 +96,14 @@ function renderLogin() {
   setNav("");
   const u = el("input", { type: "text", id: "u", autocomplete: "username", required: true });
   const p = el("input", { type: "password", id: "p", autocomplete: "current-password", required: true });
-  const btn = el("button", { class: "btn", type: "submit" }, "Sign in");
-  const form = el("form", { class: "card login", onsubmit: (e) => {
+  const btn = el("button", { class: "btn cta", type: "submit" }, "Enter the workspace");
+  const form = el("form", { class: "login-card", "aria-label": "Sign in", onsubmit: (e) => {
     e.preventDefault();
     busy(btn, async () => {
       ME = await api("/api/login", { method: "POST", body: { username: u.value, password: p.value } });
       route();
     });
   } },
-    el("h1", {}, "Sign in to BrandProof"),
-    el("p", { class: "sub" }, "Check content against your approved brand rules before it is published."),
     el("label", { for: "u" }, "Username"), u,
     el("label", { for: "p" }, "Password"), p,
     el("div", { class: "actions" }, btn),
@@ -112,12 +111,26 @@ function renderLogin() {
   if (CFG && CFG.demo) {
     const pick = (name) => el("button", { type: "button", class: "btn ghost small", onclick: () => { u.value = name; p.value = CFG.demo.password; } }, name);
     form.append(el("div", { class: "hint" },
-      el("b", {}, "Demo workspace (fictional brand “Verdant”)"), el("br"),
-      `Password for all demo accounts: ${CFG.demo.password}`, el("br"),
-      "Fill in: ", ...CFG.demo.accounts.map(pick), el("br"),
-      el("span", { class: "meta" }, "creator writes drafts · reviewer approves · admin manages the brand library")));
+      el("div", { class: "eyebrow" }, "Demo · fictional brand “Verdant”"),
+      el("div", { class: "meta" }, `Password: ${CFG.demo.password}`),
+      el("div", { class: "actions" }, ...CFG.demo.accounts.map(pick))));
   }
-  main.replaceChildren(form);
+  const hero = el("section", { class: "hero" },
+    el("div", { class: "hero-col left" },
+      el("div", { class: "tagline" },
+        el("div", { class: "eyebrow" }, "Brand governance, before publishing"),
+        el("p", {}, "Every finding quotes the approved rule or fact behind it. People make every decision.")),
+      el("h1", { class: "hero-word" }, "Every claim"),
+      form),
+    el("div", { class: "figure", "aria-hidden": "true" },
+      el("div", { class: "shoulders" }), el("div", { class: "neck" }), el("div", { class: "head" }), el("div", { class: "visor" })),
+    el("div", { class: "hero-col right" },
+      el("div", {}),
+      el("p", { class: "hero-word" }, "has a source"),
+      el("div", { class: "hero-side" },
+        el("div", { class: "tile a" }, el("div", { class: "pic", "aria-hidden": "true" }), el("p", {}, "Sourced. Checked. Approved.")),
+        el("div", { class: "tile b" }, el("div", { class: "pic", "aria-hidden": "true" }), el("p", {}, "No source, no flag.")))));
+  main.replaceChildren(hero);
   u.focus();
 }
 
@@ -136,7 +149,7 @@ function renderNew() {
       if (!title.value) title.value = file.files[0].name.replace(/\.[^.]+$/, "");
     } catch (e) { toast(e.message); }
   });
-  const run = el("button", { class: "btn", onclick: () => busy(run, async () => {
+  const run = el("button", { class: "btn cta", onclick: () => busy(run, async () => {
     if (!title.value.trim() || !text.value.trim()) throw new Error("Add a title and some content.");
     const d = await api("/api/drafts", { method: "POST", body: { title: title.value, channel: channel.value, content: text.value } });
     sessionStorage.setItem("bp-note", d.note || "");
@@ -178,7 +191,7 @@ async function renderDrafts() {
     : el("p", { class: "empty" }, ME.role === "reviewer" ? "Nothing has been submitted yet." : "No drafts yet. Start a new review.");
   main.replaceChildren(el("h1", {}, ME.role === "creator" ? "My drafts" : "All drafts"),
     el("p", { class: "sub" }, ME.role === "reviewer" ? "Open a draft waiting for approval to review it." : "Click a draft to see its findings and history."),
-    el("div", { class: "card" }, body));
+    el("div", { class: "card table-wrap" }, body));
 }
 
 // ---------- draft detail ----------
@@ -234,7 +247,7 @@ async function renderDraft(id, preset) {
   wf.append(el("p", {}, statusBadge(d.status), " ", el("span", { class: "meta" }, `Author: ${d.author_name} · ${d.channel} · ${data.versions} version(s)`)));
   const acts = el("div", { class: "actions" });
   if (can.submit) {
-    const b = el("button", { class: "btn", onclick: () => busy(b, async () => reload(await api(`/api/drafts/${id}/submit`, { method: "POST" }))) }, "Submit for approval");
+    const b = el("button", { class: "btn cta", onclick: () => busy(b, async () => reload(await api(`/api/drafts/${id}/submit`, { method: "POST" }))) }, "Submit for approval");
     acts.append(b);
     if (openN) wf.append(el("p", { class: "meta" }, `${openN} finding(s) are still open. You can still submit; the reviewer will see them.`));
   }
@@ -282,7 +295,7 @@ async function renderDraft(id, preset) {
   for (const f of findings) right.append(findingCard(f, can.resolve, reload));
 
   main.replaceChildren(
-    el("p", {}, el("a", { href: "#drafts" }, "← Drafts")),
+    el("p", {}, el("a", { href: "#drafts", class: "back" }, "← All drafts")),
     el("h1", {}, d.title),
     el("div", { class: "grid" }, left, right));
 }
