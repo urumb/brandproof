@@ -1,0 +1,30 @@
+# Render Blueprint: one free web service. Secrets marked sync:false are entered in the Render dashboard.
+services:
+  - type: web
+    name: brandproof
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: LLM_MODEL
+        value: openai/gpt-oss-120b
+      - key: SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: SEED_DEMO
+        value: "1"
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: DEMO_LOGIN_HINT
+        value: "1"
+      - key: DEMO_LOCK_LIBRARY
+        value: "1"

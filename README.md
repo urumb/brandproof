@@ -45,11 +45,13 @@ current model from Groq's model list. To switch provider, change `LLM_BASE_URL` 
 - Only the draft and matching approved sources are sent to the AI provider.
 
 ## Deploy (free)
-Any free Python host works (e.g. Render web service):
+`render.yaml` is a Render Blueprint for one free web service (New > Blueprint, pick this repo,
+then enter `LLM_API_KEY` and `DEMO_PASSWORD`; `SECRET_KEY` is generated). On any other free Python host:
 - Build: `pip install -r requirements.txt`
-- Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"`
+  (proxy headers let rate limits see each visitor's IP instead of the host's proxy)
 - Env vars: `LLM_API_KEY`, `LLM_MODEL`, `SECRET_KEY` (long random), `COOKIE_SECURE=1`,
-  `SEED_DEMO=1`, `DEMO_PASSWORD`, `DEMO_LOGIN_HINT=1`.
+  `SEED_DEMO=1`, `DEMO_PASSWORD`, `DEMO_LOGIN_HINT=1`, `DEMO_LOCK_LIBRARY=1`.
 - Free hosts may sleep and reset the SQLite file; the demo workspace is re-seeded on start.
   Use a free uptime pinger on `/healthz` so judges don't hit a cold start.
 
